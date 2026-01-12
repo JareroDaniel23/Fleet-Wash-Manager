@@ -88,8 +88,30 @@ public class WashingServiceController {
     }
 
     @DeleteMapping("/{id}")
+    @Transactional
     public void deleteService(@PathVariable Long id) {
-        washingServiceRepository.deleteById(id);
+        WashingService serviceToDelete = washingServiceRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Service not found with id: " + id));
+
+        if (serviceToDelete.getVehicleType() != null) {
+            Long vehicleTypeId = serviceToDelete.getVehicleType().getId();
+            List<SupplyConsumption> recipe = supplyConsumptionRepository.findByVehicleType_Id(vehicleTypeId);
+
+            for (SupplyConsumption consumption : recipe) {
+
+                Supply supplyInStock = consumption.getSupply();
+
+                Double amountInMilliliters = consumption.getQuantity();
+
+                double amountInLiters = amountInMilliliters / 1000.0;
+
+                double currentQty = supplyInStock.getCurrentQuantity() != null ? supplyInStock.getCurrentQuantity() : 0.0;
+
+                supplyInStock.setCurrentQuantity(currentQty + amountInLiters);
+                supplyRepository.save(supplyInStock);
+            }
+        }
+        washingServiceRepository.delete(serviceToDelete);
     }
 
     @DeleteMapping
